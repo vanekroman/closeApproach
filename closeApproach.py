@@ -7,7 +7,7 @@ import numpy as np
 from astropy import time
 from astropy import units as u
 from numpy import arctan, cos, sin, sqrt, tan
-from poliastro.bodies import Body, Moon, Sun
+from poliastro.bodies import Moon, Sun
 from poliastro.constants import J2000, GM_earth, R_pluto
 from poliastro.examples import churi, iss
 from poliastro.plotting import OrbitPlotter
@@ -302,8 +302,6 @@ for (body1_name, body2_name), distance in distances.items():
 
 frame = OrbitPlotter(backend=Plotly3D(use_dark_theme=True))
 
-scale_factor = 2
-
 for body in bodies:
     a = body.a / au << u.AU
     ecc = body.ecc << u.one
@@ -315,5 +313,6 @@ for body in bodies:
     jd = time.Time(ctime, format="jd")
 
     orb = Orbit.from_classical(Sun, a, ecc, inc, raan, argp, nu, epoch=jd)
+    frame.plot(orb)
 
 frame.show()
