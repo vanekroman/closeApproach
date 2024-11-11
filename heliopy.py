@@ -1,5 +1,4 @@
-from math import degrees, floor, radians
-from typing import List
+from math import floor
 
 import numpy as np
 
@@ -14,10 +13,6 @@ from poliastro.plotting import OrbitPlotter
 from poliastro.plotting.orbit.backends import Plotly3D
 from poliastro.plotting.orbit.plotter import Trajectory
 from poliastro.twobody import Orbit
-
-# Gravitational paramters
-uSun = 2.959122083e-4  # AU3^3 day^-2
-au = 149597870.700  # km
 
 
 class Body:
@@ -48,34 +43,6 @@ class Body:
         self.pos = np.zeros(3)
         self.velocity = np.zeros(3)
         self.p = 0.0
-
-
-bodies: List[Body] = []
-bodies += [
-    Body(name, a, ecc, inc, raan, argp, tpassp)
-    for name, a, ecc, inc, raan, argp, tpassp in [
-        (
-            "Earth",
-            1,
-            0.0167,
-            0,
-            -11.26064,
-            114.20783,
-            2451547.5191,
-        ),
-        (
-            "LV2021",
-            1.3117,
-            0.4316,
-            16.4732,
-            246.4812,
-            276.6864,
-            2459305.24448,
-        ),
-    ]
-]
-
-ctime = 2459362.0555
 
 
 def gregorian_to_julian(year, month, day, ut=0.0):
@@ -223,96 +190,19 @@ def polar_to_cartesian_velocity(p, e, theta, mu):
     return np.array([vx, vy, vz])
 
 
-## Main Calculations
-for body in bodies:
+# frame = OrbitPlotter(backend=Plotly3D(use_dark_theme=True))
 
-    # Mean motion
-    body.n = np.sqrt(uSun / (body.a * body.a * body.a))
-
-    #  Unit conversion
-    body.a = body.a * au
-    body.inc = radians(body.inc)
-    body.raan = radians(body.raan)
-    body.argp = radians(body.argp)
-
-    # Type of orbit
-    if body.ecc < 1:
-        # elliptic
-
-        # Orbital parameter
-        body.p = body.a * (1 - body.ecc * body.ecc)
-
-        # Mean anomaly
-        body.meananomaly = body.n * (ctime - body.tpassp)
-
-        # Eccentric anomaly
-        body.eccentricanomaly[0] = body.meananomaly
-        # Ecaluate eccentric anomaly
-        for i in range(0, body.eccentricanomaly.size - 1):
-            body.eccentricanomaly[i + 1] = body.meananomaly + body.ecc * sin(body.eccentricanomaly[i])
-
-        # True anomaly
-        body.trueanomaly = 2 * arctan(sqrt((1 + body.ecc) / (1 - body.ecc)) * tan(body.eccentricanomaly[-1] / 2))
-
-    elif body.ecc == 1:
-        # parabolic
-        p = 2 * body.a
-    else:
-        # hyperbolic
-        p = body.a * (pow(body.ecc, 2) - 1)
-
-    # 2D State position vector
-    position_perifocal = polar_to_cartesian_position(body.p, body.ecc, body.trueanomaly)
-    # 2D State velocity vector
-    uSun_km = uSun * (au * au * au) / ((24 * 60 * 60) * (24 * 60 * 60))
-    velocity_perifocal = polar_to_cartesian_velocity(body.p, body.ecc, body.trueanomaly, uSun_km)
-
-    # Transformation matrix
-    T = transformation_matrix(body.argp, body.raan, body.inc)
-
-    # 3D State position vector
-    body.pos = T @ position_perifocal
-    # 3D State velocity vector
-    body.velocity = T @ velocity_perifocal
-
-
-distances = {}
-velocities = {}
-
-# Calculate distances between each pair of bodies
-for i in range(len(bodies)):
-    for j in range(i + 1, len(bodies)):
-        body1 = bodies[i]
-        body2 = bodies[j]
-
-        # Calculate the Euclidean distance
-        distance = np.linalg.norm(body1.pos - body2.pos)
-        # Calculate the relative velocity (Euclidean norm of velocity difference)
-        relative_velocity = np.linalg.norm(body1.velocity - body2.velocity)
-
-        # Store distance and relative velocity in dictionaries
-        distances[(body1.name, body2.name)] = distance
-        velocities[(body1.name, body2.name)] = relative_velocity
-
-# Output distances and relative speed
-for (body1_name, body2_name), distance in distances.items():
-    relative_velocity = velocities[(body1_name, body2_name)]
-    print(f"Distance between {body1_name} and {body2_name}: {(distance / au):.2f} AU or {distance:.2f} km")
-    print(f"Relative velocity between {body1_name} and {body2_name}: {(relative_velocity / au):.2f} AU or {relative_velocity:.2f} km/s")
-
-frame = OrbitPlotter(backend=Plotly3D(use_dark_theme=True))
-
-for body in bodies:
-    a = body.a / au << u.AU
-    ecc = body.ecc << u.one
-    inc = body.inc << u.rad
-    raan = body.raan << u.rad
-    argp = body.argp << u.rad
-    nu = body.trueanomaly << u.rad
-
-    jd = time.Time(ctime, format="jd")
-
-    orb = Orbit.from_classical(Sun, a, ecc, inc, raan, argp, nu, epoch=jd)
-    frame.plot(orb)
-
-frame.show()
+# for body in bodies:
+#     a = body.a / au << u.AU
+#     ecc = body.ecc << u.one
+#     inc = body.inc << u.rad
+#     raan = body.raan << u.rad
+#     argp = body.argp << u.rad
+#     nu = body.trueanomaly << u.rad
+#
+#     jd = time.Time(ctime, format="jd")
+#
+#     orb = Orbit.from_classical(Sun, a, ecc, inc, raan, argp, nu, epoch=jd)
+#     frame.plot(orb)
+#
+# frame.show()

@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Orbit Renderer</title>
+</head>
+<body>
+    <h1>Orbit Renderer</h1>
+
+    <!-- Form for selecting predefined bodies -->
+    <h2>Add Predefined Body</h2>
+    <form method="POST" action="/">
+        <label for="predefined_body">Choose a body:</label>
+        <select id="predefined_body" name="predefined_body">
+            {% for body in predefined_bodies %}
+                <option value="{{ body.name }}">{{ body.name }}</option>
+            {% endfor %}
+        </select>
+        <button type="submit" name="add_predefined">Add Predefined Body</button>
+    </form>
+
+    <!-- Form for adding a custom body -->
+    <h2>Add Custom Body</h2>
+    <form method="POST" action="/">
+        <label for="name">Name:</label>
+        <input type="text" id="name" name="name" required>
+
+        <label for="a">Semi-major Axis (a):</label>
+        <input type="number" step="0.01" id="a" name="a" required>
+
+        <label for="ecc">Eccentricity (ecc):</label>
+        <input type="number" step="0.01" id="ecc" name="ecc" required>
+
+        <label for="inc">Inclination (inc):</label>
+        <input type="number" step="0.01" id="inc" name="inc" required>
+
+        <label for="raan">RA of Ascending Node (raan):</label>
+        <input type="number" step="0.01" id="raan" name="raan" required>
+
+        <label for="argp">Argument of Periapsis (argp):</label>
+        <input type="number" step="0.01" id="argp" name="argp" required>
+
+        <label for="tpassp">Time of Periapsis Passage (tpassp):</label>
+        <input type="number" step="0.01" id="tpassp" name="tpassp" required>
+
+        <button type="submit" name="add_custom">Add Custom Body</button>
+    </form>
+
+    <hr>
+
+    <!-- Display Results of Distances and Velocities -->
+    {% if distances and velocities %}
+        <h2>Calculated Distances and Velocities</h2>
+        <ul>
+            {% for (body1, body2), distance in distances.items() %}
+                <li>Distance between {{ body1 }} and {{ body2 }}: {{ distance|round(2) }} km</li>
+            {% endfor %}
+            {% for (body1, body2), velocity in velocities.items() %}
+                <li>Relative velocity between {{ body1 }} and {{ body2 }}: {{ velocity|round(2) }} km/s</li>
+            {% endfor %}
+        </ul>
+    {% endif %}
+</body>
+</html>
+
