@@ -1,56 +1,53 @@
-from math import radians
+import json
 
-import numpy as np
-from astropy import time
 from astropy import units as u
+from astropy.time import Time
 from flask import Flask, render_template, request
-from numpy import arctan, cos, sin, sqrt, tan
+from plotly.graph_objects import Figure
+from plotly.utils import PlotlyJSONEncoder
 from poliastro.bodies import Sun
 from poliastro.plotting import OrbitPlotter
 from poliastro.plotting.orbit.backends import Plotly3D
 from poliastro.twobody import Orbit
 
-from heliopy import (
-    Body,
-    polar_to_cartesian_position,
-    polar_to_cartesian_velocity,
-    transformation_matrix,
-)
-
-# from typing import List
-
+# My lib
+from heliopy import Body, au, calculate_orbits, gregorian_to_julian
 
 app = Flask(__name__)
 
-# Gravitational parameters
-uSun = 2.959122083e-4  # AU^3 day^-2
-au = 149597870.700  # km
 
-# Example predefined bodies
+ctime = 2459362.0555
+
+# Predefined bodies
 predefined_bodies = [
     Body("Earth", 1, 0.0167, 0, -11.26064, 114.20783, 2451547.5191),
     Body("LV2021", 1.3117, 0.4316, 16.4732, 246.4812, 276.6864, 2459305.2444),
+    Body("Oumuamua", 1.272345, 1.20113, 122.7417, 24.59691, 241.81054, 2458006.007321),
 ]
 
 # Main body list for rendering
 bodies = []
 
-frame = OrbitPlotter(backend=Plotly3D())
+fig = Figure()
+frame = OrbitPlotter(backend=Plotly3D(figure=fig, use_dark_theme=True))
 
 
 @app.route("/", methods=["GET", "POST"])
 def index():
-    global bodies
+    global bodies, ctime
+
     if request.method == "POST":
-        if "add_predefined" in request.form:
-            # Add a predefined body
+        # Determine if adding predefined or custom body
+        if request.form.get("body_type") == "predefined":
             selected_name = request.form.get("predefined_body")
             selected_body = next((b for b in predefined_bodies if b.name == selected_name), None)
             if selected_body:
-                print(selected_body, flush=True)
+                existing_body = next((b for b in bodies if b.name == selected_name), None)
+                if not existing_body:
+                    bodies.append(selected_body)
 
-        elif "add_custom" in request.form:
-            # Add a custom-defined body
+        elif request.form.get("body_type") == "custom":
+            # Collect custom body parameters
             name = request.form.get("name")
             a = float(request.form.get("a"))
             ecc = float(request.form.get("ecc"))
@@ -58,113 +55,68 @@ def index():
             raan = float(request.form.get("raan"))
             argp = float(request.form.get("argp"))
             tpassp = float(request.form.get("tpassp"))
-            bodies.append(Body(name, a, ecc, inc, raan, argp, tpassp))
+            existing_body = next((b for b in bodies if b.name == name), None)
+            if existing_body:
+                existing_body.a = a
+                existing_body.ecc = ecc
+                existing_body.inc = inc
+                existing_body.raan = raan
+                existing_body.argp = argp
+                existing_body.tpassp = tpassp
+            else:
+                new_body = Body(name, a, ecc, inc, raan, argp, tpassp)
+                bodies.append(new_body)
 
-        # Render orbits after adding bodies
-        distances, velocities = calculate_orbits_and_plot(selected_body)
-        return render_template("index.html", predefined_bodies=predefined_bodies, distances=distances, velocities=velocities)
+        # Handle time input
+        time_format = request.form.get("time_format")
+        if time_format == "gregorian":
+            year = int(request.form.get("year"))
+            month = int(request.form.get("month"))
+            day = int(request.form.get("day"))
+            hour = float(request.form.get("hour", 0))
+            ctime = gregorian_to_julian(year, month, day, hour)
+        elif time_format == "julian":
+            ctime = float(request.form.get("julian_date"))
+
+        # Calculate orbits with updated bodies and time
+        distances, velocities = plot_bodies(bodies, frame, time=ctime)
+        plot_data = json.dumps(fig, cls=PlotlyJSONEncoder)
+
+        return render_template("index.html", predefined_bodies=predefined_bodies, distances=distances, velocities=velocities, plot_data=plot_data, current_time=ctime)
 
     return render_template("index.html", predefined_bodies=predefined_bodies)
 
 
-ctime = 2459362.0555
+# Just for creation of the plot
+def plot_bodies(bodies, frame, time):
+    # Main calcution calculated here
+    distances, velocities = calculate_orbits(bodies, time)
 
+    for body in bodies:
+        if body.calculated:
+            continue
 
-def calculate_orbits_and_plot(body):
-    global ctime
-    global bodies
-    ## Main Calculations
+        ecc = body.ecc << u.one
+        inc = body.inc << u.rad
+        raan = body.raan << u.rad
+        argp = body.argp << u.rad
+        nu = body.trueanomaly << u.rad
+        jd = Time(time, format="jd")
 
-    # Mean motion
-    body.n = np.sqrt(uSun / (body.a * body.a * body.a))
+        if body.ecc > 1:
+            # Hyperbolic orbit
+            a = body.a / au * (-1) << u.AU
 
-    #  Unit conversion
-    body.a = body.a * au
-    body.inc = radians(body.inc)
-    body.raan = radians(body.raan)
-    body.argp = radians(body.argp)
+            # nu_limit = hyp_nu_limit(ecc)
+            # ephem = orb1.to_ephem(strategy=TrueAnomalyBounds())
+            # orb = Orbit.from_ephem(Sun, ephem, epoch=jd)
 
-    # Type of orbit
-    if body.ecc < 1:
-        # elliptic
-        # Orbital parameter
-        body.p = body.a * (1 - body.ecc * body.ecc)
+        else:
+            a = body.a / au << u.AU
 
-        # Mean anomaly
-        body.meananomaly = body.n * (ctime - body.tpassp)
-
-        # Eccentric anomaly
-        body.eccentricanomaly[0] = body.meananomaly
-        # Ecaluate eccentric anomaly
-        for i in range(0, body.eccentricanomaly.size - 1):
-            body.eccentricanomaly[i + 1] = body.meananomaly + body.ecc * sin(body.eccentricanomaly[i])
-
-        # True anomaly
-        body.trueanomaly = 2 * arctan(sqrt((1 + body.ecc) / (1 - body.ecc)) * tan(body.eccentricanomaly[-1] / 2))
-
-    elif body.ecc == 1:
-        # parabolic
-        body.p = 2 * body.a
-    else:
-        # hyperbolic
-        body.p = body.a * (pow(body.ecc, 2) - 1)
-
-    # 2D State position vector
-    position_perifocal = polar_to_cartesian_position(body.p, body.ecc, body.trueanomaly)
-    # 2D State velocity vector
-    uSun_km = uSun * (au * au * au) / ((24 * 60 * 60) * (24 * 60 * 60))
-    velocity_perifocal = polar_to_cartesian_velocity(body.p, body.ecc, body.trueanomaly, uSun_km)
-
-    # Transformation matrix
-    T = transformation_matrix(body.argp, body.raan, body.inc)
-
-    # 3D State position vector
-    body.pos = T @ position_perifocal
-    # 3D State velocity vector
-    body.velocity = T @ velocity_perifocal
-
-    distances = {}
-    velocities = {}
-    # Calculate distances between each pair of bodies
-    for i in range(len(bodies)):
-        for j in range(i + 1, len(bodies)):
-            body1 = bodies[i]
-            body2 = bodies[j]
-
-            # Calculate the Euclidean distance
-            distance = np.linalg.norm(body1.pos - body2.pos)
-            # Calculate the relative velocity (Euclidean norm of velocity difference)
-            relative_velocity = np.linalg.norm(body1.velocity - body2.velocity)
-
-            # Store distance and relative velocity in dictionaries
-            distances[(body1.name, body2.name)] = distance
-            velocities[(body1.name, body2.name)] = relative_velocity
-
-    # Output distances and relative speed
-    for (body1_name, body2_name), distance in distances.items():
-        relative_velocity = velocities[(body1_name, body2_name)]
-        print(f"Distance between {body1_name} and {body2_name}: {(distance / au):.2f} AU or {distance:.2f} km")
-        print(f"Relative velocity between {body1_name} and {body2_name}: {(relative_velocity / au):.2f} AU or {relative_velocity:.2f} km/s")
-
-    global frame
-
-    # Generate plot for each body
-    a = body.a / au << u.AU
-    ecc = body.ecc << u.one
-    inc = body.inc << u.rad
-    raan = body.raan << u.rad
-    argp = body.argp << u.rad
-    nu = body.trueanomaly << u.rad
-
-    jd = time.Time(ctime, format="jd")
-
-    orb = Orbit.from_classical(Sun, a, ecc, inc, raan, argp, nu, epoch=jd)
-
-    frame.plot(orb)
-
-    bodies.append(body)
-    # Retrieve the HTML div with Plotly figure
-    frame.show()
+        orb = Orbit.from_classical(Sun, a, ecc, inc, raan, argp, nu, epoch=jd)
+        frame.plot(orb)
+        body.calculated = True
 
     return distances, velocities
 
