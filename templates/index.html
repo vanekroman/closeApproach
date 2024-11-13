@@ -137,6 +137,12 @@
 
         <!-- Submit Button -->
         <button type="submit" name="add_body">Add Body</button>
+
+    </form>
+
+    <form method="POST" action="/">
+        <!-- Button for Clearing All Bodies -->
+        <button type="submit" name="action" value="clear" style="background-color: #d32f2f;">Clear All Bodies</button>
     </form>
 
     <script>
@@ -180,7 +186,7 @@
             {% for (body1, body2), distance in distances.items() %}
                 <li>
                     Distance between {{ body1 }} and {{ body2 }}: 
-                    {{ distance|round(2) }} km ({{ (distance / 149597870.7)|round(4) }} AU)
+                    {{ distance|round(0) }} km ({{ (distance / 149597870.7)|round(2) }} AU)
                 </li>
             {% endfor %}
             {% for (body1, body2), velocity in velocities.items() %}

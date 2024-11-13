@@ -34,9 +34,18 @@ frame = OrbitPlotter(backend=Plotly3D(figure=fig, use_dark_theme=True))
 
 @app.route("/", methods=["GET", "POST"])
 def index():
-    global bodies, ctime
+    global bodies, ctime, fig, frame
 
     if request.method == "POST":
+        # Check if the clear button was clicked
+        if request.form.get("action") == "clear":
+            # Clear everything
+            bodies = []
+            fig = Figure()
+            frame = OrbitPlotter(backend=Plotly3D(figure=fig, use_dark_theme=True))
+
+            return render_template("index.html", predefined_bodies=predefined_bodies)
+
         # Determine if adding predefined or custom body
         if request.form.get("body_type") == "predefined":
             selected_name = request.form.get("predefined_body")
@@ -125,5 +134,5 @@ if __name__ == "__main__":
     # app.run(debug=True)
     import os
 
-    port = int(os.environ.get("PORT", 5000))
+    port = int(os.environ.get("PORT", 5001))
     app.run(host="0.0.0.0", port=port)
