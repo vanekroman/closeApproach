@@ -1,4 +1,5 @@
-# Python project for 
+# Python project for calculations of **Close Earth Aproaches**
+It was created as a university homework as a part of OZ0-A course.
 
 ## Currently hosted 
 Should be up and running, see for your self:
