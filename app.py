@@ -99,13 +99,11 @@ def index():
         elif time_format == "julian":
             ctime = float(request.form.get("julian_date"))
 
-        # Calculate orbits with updated bodies and time
-        distances, velocities = plot_bodies(bodies, frame, time=ctime)
-        plot_data = json.dumps(fig, cls=PlotlyJSONEncoder)
+    # Calculate orbits with updated bodies and time
+    distances, velocities = plot_bodies(bodies, frame, time=ctime)
+    plot_data = json.dumps(fig, cls=PlotlyJSONEncoder)
 
-        return render_template("index.html", predefined_bodies=predefined_bodies, distances=distances, velocities=velocities, plot_data=plot_data)
-
-    return render_template("index.html", predefined_bodies=predefined_bodies)
+    return render_template("index.html", predefined_bodies=predefined_bodies, distances=distances, velocities=velocities, plot_data=plot_data)
 
 
 # Just for creation of the plot
