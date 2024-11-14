@@ -1,6 +1,6 @@
 # Python project for calculations of **Close Earth Aproaches**
 It was created as a university homework as a part of OZ0-A course.
-
+:-------------------------:|:-------------------------:
 |![LV2021](./LV2021.png)|![Oumuamua](./Oumuamua.png)|
 
 ## Currently hosted 
