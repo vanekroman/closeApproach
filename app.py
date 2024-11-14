@@ -35,17 +35,27 @@ frame = OrbitPlotter(backend=Plotly3D(figure=fig, use_dark_theme=True))
 
 @app.route("/", methods=["GET", "POST"])
 def index():
-    global bodies, ctime, fig, frame
+    global bodies, ctime, frame, fig, predefined_bodies
 
     if request.method == "POST":
+
         # Check if the clear button was clicked
         if request.form.get("action") == "clear":
             # Clear everything
             bodies = []
             fig = Figure()
             frame = OrbitPlotter(backend=Plotly3D(figure=fig, use_dark_theme=True))
+            plot_data = json.dumps(fig, cls=PlotlyJSONEncoder)
 
-            return render_template("index.html", predefined_bodies=predefined_bodies)
+            # Predefined bodies
+            predefined_bodies = [
+                Body("Earth", 1, 0.0167, 0, -11.26064, 114.20783, 2451547.5191),
+                Body("LV2021", 1.3117, 0.4316, 16.4732, 246.4812, 276.6864, 2459305.2444),
+                Body("Oumuamua", 1.272345, 1.20113, 122.7417, 24.59691, 241.81054, 2458006.007321),
+                Body("Icarus", 1.078, 0.8269, 22.8, 87.95, 31.44, 2460200.5),
+            ]
+
+            return render_template("index.html", predefined_bodies=predefined_bodies, plot_data=plot_data)
 
         # Determine if adding predefined or custom body
         if request.form.get("body_type") == "predefined":
@@ -54,6 +64,7 @@ def index():
             if selected_body:
                 existing_body = next((b for b in bodies if b.name == selected_name), None)
                 if not existing_body:
+                    selected_body.calculated = False
                     bodies.append(selected_body)
 
         elif request.form.get("body_type") == "custom":
@@ -65,19 +76,19 @@ def index():
             raan = float(request.form.get("raan"))
             argp = float(request.form.get("argp"))
             tpassp = float(request.form.get("tpassp"))
-            existing_body = next((b for b in bodies if b.name == name), None)
-            if existing_body:
-                existing_body.a = a
-                existing_body.ecc = ecc
-                existing_body.inc = inc
-                existing_body.raan = raan
-                existing_body.argp = argp
-                existing_body.tpassp = tpassp
-            else:
-                new_body = Body(name, a, ecc, inc, raan, argp, tpassp)
-                bodies.append(new_body)
+            # existing_body = next((b for b in bodies if b.name == name), None)
+            # if existing_body:
+            #     existing_body.a = a
+            #     existing_body.ecc = ecc
+            #     existing_body.inc = inc
+            #     existing_body.raan = raan
+            #     existing_body.argp = argp
+            #     existing_body.tpassp = tpassp
+            if a < 0:
+                a = a * (-1)
+            new_body = Body(name, a, ecc, inc, raan, argp, tpassp)
+            bodies.append(new_body)
 
-        # Handle time input
         time_format = request.form.get("time_format")
         if time_format == "gregorian":
             year = int(request.form.get("year"))
@@ -92,7 +103,7 @@ def index():
         distances, velocities = plot_bodies(bodies, frame, time=ctime)
         plot_data = json.dumps(fig, cls=PlotlyJSONEncoder)
 
-        return render_template("index.html", predefined_bodies=predefined_bodies, distances=distances, velocities=velocities, plot_data=plot_data, current_time=ctime)
+        return render_template("index.html", predefined_bodies=predefined_bodies, distances=distances, velocities=velocities, plot_data=plot_data)
 
     return render_template("index.html", predefined_bodies=predefined_bodies)
 
@@ -113,18 +124,20 @@ def plot_bodies(bodies, frame, time):
         nu = body.trueanomaly << u.rad
         jd = Time(time, format="jd")
 
-        if body.ecc > 1:
+        if body.ecc > 1.0:
             # Hyperbolic orbit
             a = body.a / au * (-1) << u.AU
-
-            # nu_limit = hyp_nu_limit(ecc)
-            # ephem = orb1.to_ephem(strategy=TrueAnomalyBounds())
-            # orb = Orbit.from_ephem(Sun, ephem, epoch=jd)
+        elif body.ecc == 1.0:
+            a = body.a / au * (-1) << u.AU
+            # TODO: Fix another way parabolic orbit plot
+            ecc = (body.ecc + 0.00001) << u.one
+            # orb = Orbit.parabolic(Sun, p, inc, raan, argp, nu, epoch=jd)
 
         else:
             a = body.a / au << u.AU
 
         orb = Orbit.from_classical(Sun, a, ecc, inc, raan, argp, nu, epoch=jd)
+
         frame.plot(orb)
         body.calculated = True
 
