@@ -24,6 +24,7 @@ class Body:
         self.ecc = ecc
         self.inc = inc
         self.raan = raan
+        self.argp = argp
         self.tpassp = tpassp
 
         # These should be instance variables, so each object has its own version
